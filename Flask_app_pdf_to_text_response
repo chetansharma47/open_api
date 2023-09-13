@@ -1,0 +1,72 @@
+import PyPDF2
+from flask import Flask, request, jsonify
+import openai
+
+# Set up your OpenAI API credentials
+openai.api_key = 'open_api_key'
+
+app = Flask(__name__)
+
+# Define the path to the PDF file
+pdf_file_path = 'file_path'
+
+global output
+
+# Function to extract text from a PDF file
+def extract_text_from_pdf(pdf_file_path):
+    try:
+        pdf_text = ""
+        with open(pdf_file_path, "rb") as pdf_file:
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            for page_number in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_number]
+                pdf_text += page.extract_text()
+                print("pdf text is .............",pdf_text)
+        return pdf_text
+    except Exception as e:
+        return str(e)
+
+
+@app.route('/get_pdf_text', methods=['GET'])
+def get_pdf_text():
+    try:
+        pdf_text = extract_text_from_pdf(pdf_file_path)
+        return jsonify({'pdf_text': pdf_text})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
+@app.route('/process_pdf', methods=['GET', 'POST'])
+def process_pdf():
+    global output
+    output = ""
+
+    try:
+        # Extract text from the PDF file
+        pdf_text = extract_text_from_pdf(pdf_file_path)
+        
+        # Get the user's question from the request
+        user_question = request.json.get('user_question')
+
+        # Create a single request to OpenAI
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=f"PDF Content: {pdf_text}\nUser Question: {user_question}",
+            max_tokens=1000  # Adjust the max_tokens as needed
+        )
+
+        # Extract the generated response from OpenAI
+        bot_response = response.choices[0].text.strip()
+
+        # Add the response to the output
+        output += bot_response + "\n"
+
+        return jsonify({'response': output})
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+  
+
+if __name__ == '__main__':
+    app.run(debug=True)
